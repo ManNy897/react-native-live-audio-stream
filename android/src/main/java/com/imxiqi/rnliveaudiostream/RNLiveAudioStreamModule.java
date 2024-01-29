@@ -2,6 +2,7 @@ package com.imxiqi.rnliveaudiostream;
 
 import android.media.AudioFormat;
 import android.media.AudioRecord;
+import static android.media.AudioRecord.READ_BLOCKING;
 import android.media.MediaRecorder.AudioSource;
 import android.util.Base64;
 import android.util.Log;
@@ -14,6 +15,13 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.lang.Math;
+import java.nio.ByteBuffer;
+import java.sql.Timestamp;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+
+
+
 
 public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
 
@@ -58,6 +66,9 @@ public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
             if (options.getInt("bitsPerSample") == 8) {
                 audioFormat = AudioFormat.ENCODING_PCM_8BIT;
             }
+            if (options.getInt("bitsPerSample") == 32) {
+                audioFormat = AudioFormat.ENCODING_PCM_FLOAT;
+            }
         }
 
         audioSource = AudioSource.VOICE_RECOGNITION;
@@ -89,17 +100,34 @@ public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
                     int bytesRead;
                     int count = 0;
                     String base64Data;
-                    byte[] buffer = new byte[bufferSize];
+                    
+                    if(audioFormat == AudioFormat.ENCODING_PCM_FLOAT) {
+                        float[] floatBuffer = new float[bufferSize];
 
-                    while (isRecording) {
-                        bytesRead = recorder.read(buffer, 0, buffer.length);
+                        while (isRecording) {
+                            bytesRead = recorder.read(floatBuffer, 0, floatBuffer.length,  READ_BLOCKING);
+                            byte[] bytes = new byte[4 * floatBuffer.length];
+                            ByteBuffer.wrap(bytes).asFloatBuffer().put(floatBuffer);
+                            // skip first 2 buffers to eliminate "click sound"
+                            if (bytesRead > 0 && ++count > 2) {
+                                base64Data = Base64.encodeToString(bytes, Base64.NO_WRAP);
+                                eventEmitter.emit("data", base64Data);
+                            }
+                        }
+                    } else {
+                        byte[] byteBuffer = new byte[bufferSize];
+                        while (isRecording) {
+                            bytesRead = recorder.read(byteBuffer, 0, byteBuffer.length,  READ_BLOCKING);
+                            
+                            // skip first 2 buffers to eliminate "click sound"
+                            if (bytesRead > 0 && ++count > 2) {
+                                base64Data = Base64.encodeToString(byteBuffer, Base64.NO_WRAP);
+                                eventEmitter.emit("data", base64Data);
+                            }
 
-                        // skip first 2 buffers to eliminate "click sound"
-                        if (bytesRead > 0 && ++count > 2) {
-                            base64Data = Base64.encodeToString(buffer, Base64.NO_WRAP);
-                            eventEmitter.emit("data", base64Data);
                         }
                     }
+
                     recorder.stop();
                 } catch (Exception e) {
                     e.printStackTrace();
