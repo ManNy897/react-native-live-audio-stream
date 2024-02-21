@@ -16,9 +16,27 @@ import com.facebook.react.modules.core.DeviceEventManagerModule;
 
 import java.lang.Math;
 import java.nio.ByteBuffer;
+import java.nio.FloatBuffer;
 import java.sql.Timestamp;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
+
+import org.tensorflow.lite.gpu.CompatibilityList;
+import org.tensorflow.lite.Interpreter;
+import java.nio.MappedByteBuffer;
+import org.tensorflow.lite.support.common.FileUtil;
+import java.io.IOException;
+import org.tensorflow.op.core.LinSpace;
+import org.tensorflow.EagerSession;
+import org.tensorflow.op.Scope;
+import org.tensorflow.op.OpScope;
+import org.tensorflow.op.core.Constant;
+import org.tensorflow.Graph;
+
+
+
+
+
 
 
 
@@ -36,10 +54,13 @@ public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
     private AudioRecord recorder;
     private int bufferSize;
     private boolean isRecording;
+    private Interpreter model;
 
     public RNLiveAudioStreamModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
+
+
     }
 
     @Override
@@ -100,6 +121,17 @@ public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
                     int bytesRead;
                     int count = 0;
                     String base64Data;
+                    MappedByteBuffer mb=FileUtil.loadMappedFile(reactContext,"tflite_output.tflite");
+                    // File modelFile = new File("android_asset/tflite_output.tflite");
+                    Interpreter model = new Interpreter(mb);
+//                    Graph graph =  new Graph();
+//                    Scope scope = new OpScope(graph);
+//                    LinSpace linspaceOperator = LinSpace.create(scope, Constant.scalarOf(scope, 0), Constant.scalarOf(scope, 7180), Constant.scalarOf(scope, 360));
+
+//                    Tensor t = Tensor.of(...);
+
+//                    this.centMapping = tf.add(tf.linspace(0, 7180, 360), tf.tensor(1997.3794084376191));
+
                     
                     if(audioFormat == AudioFormat.ENCODING_PCM_FLOAT) {
                         float[] floatBuffer = new float[bufferSize];
@@ -113,6 +145,14 @@ public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
                                 base64Data = Base64.encodeToString(bytes, Base64.NO_WRAP);
                                 eventEmitter.emit("data", base64Data);
                             }
+
+                            float[] inputFloatArray = Arrays.copyOfRange(floatBuffer, 0, 1024);
+                            FloatBuffer input = FloatBuffer.wrap(inputFloatArray);
+                            FloatBuffer output = FloatBuffer.allocate(360);
+                            model.run(input, output);
+                            float[] result = output.array();
+                            System.out.println(Arrays.toString(result));
+
                         }
                     } else {
                         byte[] byteBuffer = new byte[bufferSize];
@@ -129,6 +169,8 @@ public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
                     }
 
                     recorder.stop();
+                } catch (IOException e){
+                    System.out.println(e);
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
