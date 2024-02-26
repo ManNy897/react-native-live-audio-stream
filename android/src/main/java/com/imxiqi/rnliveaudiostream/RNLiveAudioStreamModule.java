@@ -119,53 +119,34 @@ public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
             public void run() {
                 try {
                     int bytesRead;
-                    int count = 0;
-                    String base64Data;
-                    MappedByteBuffer mb=FileUtil.loadMappedFile(reactContext,"tflite_output.tflite");
+                    String base64DataModel;
+                    MappedByteBuffer mb=FileUtil.loadMappedFile(reactContext,"end_to_end_crepe.tflite");
                     // File modelFile = new File("android_asset/tflite_output.tflite");
                     Interpreter model = new Interpreter(mb);
-//                    Graph graph =  new Graph();
-//                    Scope scope = new OpScope(graph);
-//                    LinSpace linspaceOperator = LinSpace.create(scope, Constant.scalarOf(scope, 0), Constant.scalarOf(scope, 7180), Constant.scalarOf(scope, 360));
-
-//                    Tensor t = Tensor.of(...);
-
-//                    this.centMapping = tf.add(tf.linspace(0, 7180, 360), tf.tensor(1997.3794084376191));
-
                     
                     if(audioFormat == AudioFormat.ENCODING_PCM_FLOAT) {
                         float[] floatBuffer = new float[bufferSize];
 
                         while (isRecording) {
                             bytesRead = recorder.read(floatBuffer, 0, floatBuffer.length,  READ_BLOCKING);
-                            byte[] bytes = new byte[4 * floatBuffer.length];
-                            ByteBuffer.wrap(bytes).asFloatBuffer().put(floatBuffer);
-                            // skip first 2 buffers to eliminate "click sound"
-                            if (bytesRead > 0 && ++count > 2) {
-                                base64Data = Base64.encodeToString(bytes, Base64.NO_WRAP);
-                                eventEmitter.emit("data", base64Data);
-                            }
+                            if (bytesRead > 0) {
+                                float[] inputFloatArray = Arrays.copyOfRange(floatBuffer, 0, 1024);
+                                FloatBuffer input = FloatBuffer.wrap(inputFloatArray);
+                                FloatBuffer output = FloatBuffer.allocate(2);
+                                model.run(input, output);
+                                float[] result = output.array();
 
-                            float[] inputFloatArray = Arrays.copyOfRange(floatBuffer, 0, 1024);
-                            FloatBuffer input = FloatBuffer.wrap(inputFloatArray);
-                            FloatBuffer output = FloatBuffer.allocate(360);
-                            model.run(input, output);
-                            float[] result = output.array();
-                            System.out.println(Arrays.toString(result));
+                                byte[] bytesModel = new byte[8]; // 4*2 for 2 float values
+                                ByteBuffer.wrap(bytesModel).asFloatBuffer().put(result);
+                                base64DataModel = Base64.encodeToString(bytesModel, Base64.NO_WRAP);
+                                eventEmitter.emit("data", base64DataModel);
+                                System.out.println(Arrays.toString(result));
+                            }
 
                         }
                     } else {
-                        byte[] byteBuffer = new byte[bufferSize];
-                        while (isRecording) {
-                            bytesRead = recorder.read(byteBuffer, 0, byteBuffer.length,  READ_BLOCKING);
-                            
-                            // skip first 2 buffers to eliminate "click sound"
-                            if (bytesRead > 0 && ++count > 2) {
-                                base64Data = Base64.encodeToString(byteBuffer, Base64.NO_WRAP);
-                                eventEmitter.emit("data", base64Data);
-                            }
-
-                        }
+                        // TODO handle error
+                        System.out.println("Received incorrect audio format!");
                     }
 
                     recorder.stop();
