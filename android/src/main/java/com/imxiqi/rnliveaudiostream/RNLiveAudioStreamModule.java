@@ -26,22 +26,13 @@ import org.tensorflow.lite.Interpreter;
 import java.nio.MappedByteBuffer;
 import org.tensorflow.lite.support.common.FileUtil;
 import java.io.IOException;
-import org.tensorflow.op.core.LinSpace;
-import org.tensorflow.EagerSession;
-import org.tensorflow.op.Scope;
-import org.tensorflow.op.OpScope;
-import org.tensorflow.op.core.Constant;
-import org.tensorflow.Graph;
+
+import com.facebook.react.bridge.LifecycleEventListener;
 
 
 
 
-
-
-
-
-
-public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
+public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule implements LifecycleEventListener{
 
     private final ReactApplicationContext reactContext;
     private DeviceEventManagerModule.RCTDeviceEventEmitter eventEmitter;
@@ -59,8 +50,21 @@ public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
     public RNLiveAudioStreamModule(ReactApplicationContext reactContext) {
         super(reactContext);
         this.reactContext = reactContext;
+        reactContext.addLifecycleEventListener(this);
+    }
 
+    @Override
+    public void onHostResume() {
 
+    }
+
+    @Override
+    public void onHostPause() {
+        stop();
+    }
+    @Override
+    public void onHostDestroy() {
+        stop();
     }
 
     @Override
@@ -120,7 +124,7 @@ public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
                 try {
                     int bytesRead;
                     String base64DataModel;
-                    MappedByteBuffer mb=FileUtil.loadMappedFile(reactContext,"end_to_end_crepe.tflite");
+                    MappedByteBuffer mb = FileUtil.loadMappedFile(reactContext,"end_to_end_crepe.tflite");
                     // File modelFile = new File("android_asset/tflite_output.tflite");
                     Interpreter model = new Interpreter(mb);
                     
@@ -162,7 +166,7 @@ public class RNLiveAudioStreamModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
-    public void stop(Promise promise) {
+    public void stop() {
         isRecording = false;
     }
 }
